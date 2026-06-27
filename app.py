@@ -15,10 +15,12 @@ def filter_dates(dates):
     if not arr: raise ValueError("No date 45 days or more in the future found.")
     return arr
 
-def yang_zhang(price_data):
-    # Debug: Print the first few rows of price data
-    st.write("DEBUG: Price Data Head", price_data.head())
-    
+def yang_zhang(price_data, window=30):
+    # Ensure we have enough data points
+    if len(price_data) < window:
+        st.warning(f"Not enough data: Need {window} days, have {len(price_data)}")
+        return 0.0
+
     log_ho = (price_data['High'] / price_data['Open']).apply(np.log)
     log_lo = (price_data['Low'] / price_data['Open']).apply(np.log)
     log_co = (price_data['Close'] / price_data['Open']).apply(np.log)
@@ -26,7 +28,8 @@ def yang_zhang(price_data):
     log_cc = (price_data['Close'] / price_data['Close'].shift(1)).apply(np.log)
     
     rs = log_ho * (log_ho - log_co) + log_lo * (log_lo - log_co)
-    window = 30
+    
+    # Calculate components
     close_vol = (log_cc**2).rolling(window=window).sum() * (1.0 / (window - 1.0))
     open_vol = (log_oc**2).rolling(window=window).sum() * (1.0 / (window - 1.0))
     window_rs = rs.rolling(window=window).sum() * (1.0 / (window - 1.0))
@@ -34,9 +37,9 @@ def yang_zhang(price_data):
     k = 0.34 / (1.34 + ((window + 1) / (window - 1)))
     result = (open_vol + k * close_vol + (1 - k) * window_rs).apply(np.sqrt) * np.sqrt(252)
     
-    rv = result.iloc[-1]
-    st.write(f"DEBUG: Calculated RV: {rv}")
-    return rv
+    # Drop NAs created by the rolling window
+    final_rv = result.dropna().iloc[-1]
+    return final_rv
 
 def build_term_structure(days, ivs):
     spline = interp1d(days, ivs, kind='linear', fill_value="extrapolate")
